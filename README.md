@@ -56,11 +56,29 @@ asyncio.run(main())
 
 ## 📖 核心概念
 
-### 1. 任务状态机
-每个任务在调度器眼中，严格遵循以下 6 态流转：
-`PENDING` → `QUEUED` → `RUNNING` → `SUCCESS / FAILED / CANCELLED`
+### 1. 任务状态机 (State Machine)
+每个任务在调度器眼中，严格遵循以下流转过程。理解这些状态有助于你编写更健壮的业务逻辑：
 
-### 2. 双轨制调度算法 (Dual-Track Scheduling)
+*   **PENDING**：任务刚被 `enqueue` 提交，但尚未进入底层队列。
+*   **QUEUED**：任务已入队，正在等待全局线程池分配槽位。
+*   **RUNNING**：任务已被实例化并正在执行 `action` 方法。
+*   **SUCCESS**：任务执行成功且无异常抛出。
+*   **FAILED**：任务重试次数耗尽或发生了不可恢复的错误。
+*   **CANCELLED**：任务在执行前被 `cancel()` 调用取消。
+
+### 2. 钩子函数详解 (Lifecycle Hooks)
+ZenTask 提供了全生命周期的异步钩子。你可以重写这些方法来处理业务副作用（如记录日志、发送通知）：
+
+| 钩子名称 | 触发时机 | 典型用法 |
+| :--- | :--- | :--- |
+| `on_start` | 任务即将开始执行 `action` 之前 | 初始化资源、记录开始时间 |
+| `on_success` | 任务执行成功并返回结果后 | 处理返回值、更新数据库状态 |
+| `on_error` | 任务彻底失败（重试耗尽）后 | 发送报警邮件、记录错误堆栈 |
+| `on_retry` | 任务失败准备重新入队时 | 动态修改重试参数（如切换代理 IP） |
+| `on_cancel` | 任务被手动取消时 | 清理临时文件、回滚事务 |
+| `on_complete` | 无论成功、失败还是取消都会触发 | 最终的统计计数、资源释放 |
+
+### 3. 双轨制调度算法 (Dual-Track Scheduling)
 ZenTask 摒弃了简单的 FIFO 或纯优先级队列，采用双轨制：
 1.  **保底轨 (Min-Slots Track)**：无论优先级多低，只要该类任务的运行数 < `min_slots`，调度器必定为其分配槽位，彻底杜绝低优任务饿死。
 2.  **弹性轨 (Elastic Track)**：当所有任务都满足保底条件后，剩余的全局空闲槽位将严格按照 `priority` 降序分配，且单类任务不得超过 `max_slots`。
@@ -70,8 +88,8 @@ ZenTask 摒弃了简单的 FIFO 或纯优先级队列，采用双轨制：
 
 ## 🛠️ 进阶指南
 
-### 失败重试与安全上下文
-当任务失败时，框架采用异步延迟重新入队 (Re-enqueue with Backoff) 策略。
+### 场景一：失败重试与安全上下文篡改
+当任务失败时，框架会自动计算指数退避延迟并重新入队。你可以在 `on_retry` 中干预下一次重试的行为：
 
 ```python
 class ScanTask(ZenBaseTask):
@@ -87,8 +105,8 @@ class ScanTask(ZenBaseTask):
             print(f"IP被封，已切换代理，{next_delay}秒后重试...")
 ```
 
-### 多进程隔离与物理超度
-对于极易死锁、死循环或调用老旧 C 库的“危险任务”，开启 `use_process = True`。
+### 场景二：多进程隔离与物理超度
+对于极易死锁、死循环或调用老旧 C 库的“危险任务”，开启 `use_process = True`。此时任务会在独立的子进程中运行，即使发生崩溃也不会影响主程序：
 
 ```python
 class DangerTask(ZenBaseTask):
@@ -97,6 +115,22 @@ class DangerTask(ZenBaseTask):
 
     def action(self):
         while True: pass # 即使死循环，触发 timeout 后也会被 OS 层面强杀
+```
+
+### 场景三：优雅关闭与防并发逃逸
+在生产环境中，通常需要在服务器重启时确保当前运行的任务不丢失：
+
+```python
+# 停止接收新任务，并等待所有运行中和队列中的任务完成
+await manager.graceful_shutdown()
+```
+
+### 场景四：任务取消与惩罚机制
+如果某个高优任务不再需要执行，可以将其取消。取消的任务会触发 `on_cancel` 钩子，并计入该类的取消惩罚计数，暂时降低其后续任务的调度优先级：
+
+```python
+task_id = manager.enqueue(MyTask, ...)
+manager.cancel(task_id) # 立即从队列移除或标记为取消
 ```
 
 ## 🧪 测试与运行
