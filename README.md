@@ -66,17 +66,57 @@ asyncio.run(main())
 *   **FAILED**：任务重试次数耗尽或发生了不可恢复的错误。
 *   **CANCELLED**：任务在执行前被 `cancel()` 调用取消。
 
-### 2. 钩子函数详解 (Lifecycle Hooks)
-ZenTask 提供了全生命周期的异步钩子。你可以重写这些方法来处理业务副作用（如记录日志、发送通知）：
+### 2. 钩子函数详解与代码演示 (Lifecycle Hooks)
+ZenTask 提供了全生命周期的异步钩子。你可以重写这些方法来处理业务副作用（如记录日志、发送通知）。
 
-| 钩子名称 | 触发时机 | 典型用法 |
-| :--- | :--- | :--- |
-| `on_start` | 任务即将开始执行 `action` 之前 | 初始化资源、记录开始时间 |
-| `on_success` | 任务执行成功并返回结果后 | 处理返回值、更新数据库状态 |
-| `on_error` | 任务彻底失败（重试耗尽）后 | 发送报警邮件、记录错误堆栈 |
-| `on_retry` | 任务失败准备重新入队时 | 动态修改重试参数（如切换代理 IP） |
-| `on_cancel` | 任务被手动取消时 | 清理临时文件、回滚事务 |
-| `on_complete` | 无论成功、失败还是取消都会触发 | 最终的统计计数、资源释放 |
+#### 🚀 on_start: 启动瞬间
+触发时机：任务即将开始执行 `action` 之前。
+```python
+async def on_start(self):
+    self.start_time = time.time()
+    print(f"任务 {self.kwargs['id']} 开始运行")
+```
+
+#### ✨ on_success: 凯旋而归
+触发时机：任务执行成功并返回结果后。
+```python
+async def on_success(self):
+    # self.result 包含了 action 的返回值
+    await save_to_db(self.kwargs['id'], self.result)
+```
+
+#### ⚠️ on_retry: 屡败屡战
+触发时机：任务失败准备重新入队时。这里可以干预下一次重试的行为。
+```python
+async def on_retry(self, exception, retry_ctx, next_delay):
+    if "timeout" in str(exception):
+        # 动态增加超时时间
+        retry_ctx.set('timeout', self.timeout * 2)
+```
+
+#### ❌ on_error: 彻底放弃
+触发时机：任务彻底失败（重试耗尽）后。
+```python
+async def on_error(self):
+    # self.error 包含了最后的异常对象
+    send_alert(f"任务 {self.kwargs['id']} 最终失败: {self.error}")
+```
+
+#### 🛑 on_cancel: 紧急叫停
+触发时机：任务被手动 `manager.cancel(task_id)` 取消时。
+```python
+async def on_cancel(self):
+    print("任务被用户取消，正在清理临时文件...")
+    os.remove(self.temp_file)
+```
+
+#### 🏁 on_complete: 尘埃落定
+触发时机：无论成功、失败还是取消都会触发，是最终的收尾工作。
+```python
+async def on_complete(self):
+    duration = time.time() - self.start_time
+    print(f"任务终结，状态: {self.status.value}, 耗时: {duration:.2f}s")
+```
 
 ### 3. 双轨制调度算法 (Dual-Track Scheduling)
 ZenTask 摒弃了简单的 FIFO 或纯优先级队列，采用双轨制：
