@@ -1,7 +1,7 @@
 # ZenTask (禅意任务调度器)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 
 ZenTask 是一个专为 Python 打造的**零外部依赖**、**工业级**、**本地后台任务并发调度器**。
 
@@ -9,10 +9,11 @@ ZenTask 是一个专为 Python 打造的**零外部依赖**、**工业级**、**
 
 ## ✨ 核心优势
 
-*   **零依赖**：仅使用 Python 3.9+ 标准库，无需安装 Redis、RabbitMQ 或 Celery。
+*   **零依赖**：仅使用 Python 3.10+ 标准库，无需安装 Redis、RabbitMQ 或 Celery。
 *   **极致内存**：采用“延迟实例化”架构，百万级任务入队内存占用不超过 50MB。
 *   **防雪崩调度**：独创“双轨制调度算法”，完美解决高优任务霸占资源与低优任务饿死的问题。
 *   **立体容错**：内置指数退避重试、安全上下文篡改、超时逻辑抛弃与多进程物理超度。
+*   **异步状态机**：配套纯异步内存状态机，支持批量任务对账、SSE 实时进度推送与超时看门狗。
 
 ## 🚀 快速开始
 
@@ -123,7 +124,7 @@ ZenTask 摒弃了简单的 FIFO 或纯优先级队列，采用双轨制：
 1.  **保底轨 (Min-Slots Track)**：无论优先级多低，只要该类任务的运行数 < `min_slots`，调度器必定为其分配槽位，彻底杜绝低优任务饿死。
 2.  **弹性轨 (Elastic Track)**：当所有任务都满足保底条件后，剩余的全局空闲槽位将严格按照 `priority` 降序分配，且单类任务不得超过 `max_slots`。
 
-### 3. 延迟实例化与内存优化
+### 4. 延迟实例化与内存优化
 调用 `manager.enqueue()` 时，框架绝对不会实例化 Task 对象，而是仅将 `kwargs` (参数字典) 压入底层 `collections.deque`。只有当全局线程池有空位时，才 `popleft` 并实例化。执行完毕后立刻交由 GC 回收。
 
 ## 🛠️ 进阶指南
@@ -171,6 +172,48 @@ await manager.graceful_shutdown()
 ```python
 task_id = manager.enqueue(MyTask, ...)
 manager.cancel(task_id) # 立即从队列移除或标记为取消
+```
+
+## 🔗 联动 AsyncStateMachine (异步状态机)
+
+ZenTask 现已集成配套的纯异步内存状态机，用于追踪批量任务进度并支持 SSE 数据流推送。
+
+### 为什么需要状态机？
+*   **批量对账**：当你一次性提交 100 个子任务时，状态机能帮你统计“已完成/总数”。
+*   **SSE 推送**：通过 `subscribe` 接口，前端可以实时收到任务进度的心跳和数据更新。
+*   **超时看门狗**：为整个批量任务设置一个总超时时间，防止部分子任务卡死导致整体无法结束。
+
+### 联动示例
+```python
+from zentask.core.state_machine import AsyncStateMachine
+
+async def batch_process():
+    sm = AsyncStateMachine()
+    manager = ZenTaskManager(global_max_workers=5)
+
+    # 1. 先在状态机创建一个总任务
+    task_id = await sm.create_task(timeout=60) 
+
+    class SubTask(ZenBaseTask):
+        async def on_complete(self):
+            # 子任务完成后向状态机汇报
+            job_id = self.kwargs['job_id']
+            sm.mark_job_done(task_id, job_id)
+
+    # 2. 提交子任务并告知状态机期望的 Job ID 集合
+    job_ids = {f"job_{i}" for i in range(10)}
+    for jid in job_ids:
+        manager.enqueue(SubTask, job_id=jid)
+    
+    sm.set_expected_jobs(task_id, job_ids)
+
+    # 3. 启动监控
+    async for data in sm.subscribe(task_id):
+        print(f"收到进度: {data}")
+        if data.get("type") == "finished":
+            break
+
+    await manager.graceful_shutdown()
 ```
 
 ## 🧪 测试与运行

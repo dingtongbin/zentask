@@ -30,7 +30,7 @@ async def main():
     while len(results) < 2 or m.running_count > 0:
         print(f"Progress: Results={len(results)}, Running={m.running_count}")
         await asyncio.sleep(0.1)
-    await m.stop()
+    await m.graceful_shutdown()
     print(f"Results: {results}")
 
 if __name__ == "__main__":

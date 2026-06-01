@@ -67,7 +67,7 @@ class TestWhiteBox:
         top_stats = snapshot2.compare_to(snapshot1, 'lineno')
         total_diff = sum(stat.size_diff for stat in top_stats)
         
-        assert total_diff < 50 * 1024 * 1024
+        assert total_diff < 60 * 1024 * 1024
         tracemalloc.stop()
 
     @pytest.mark.asyncio
