@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A zero-dependency, industrial-grade local background task scheduler for Python."
 readme = "README.md"
 license = {text = "Apache-2.0"}
-requires-python = ">=3.10"
+requires-python = ">=3.6"
 authors = [
     {name = "dingtongbin"}
 ]

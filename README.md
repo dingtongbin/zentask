@@ -1,7 +1,7 @@
 # ZenTask (禅意任务调度器)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.6+-blue.svg)](https://www.python.org/)
 [![GitHub](https://img.shields.io/github/stars/dingtongbin/zentask?style=social)](https://github.com/dingtongbin/zentask)
 
 ZenTask 是一个专为 Python 打造的**零外部依赖**、**工业级**、**本地后台任务并发调度器**。
@@ -10,7 +10,7 @@ ZenTask 是一个专为 Python 打造的**零外部依赖**、**工业级**、**
 
 ## 核心优势
 
-*   **零依赖**：仅使用 Python 3.10+ 标准库，无需安装 Redis、RabbitMQ 或 Celery。
+*   **零依赖**：仅使用 Python 3.6+ 标准库，无需安装 Redis、RabbitMQ 或 Celery。
 *   **极致内存**：采用“延迟实例化”架构，百万级任务入队内存占用不超过 50MB。
 *   **防雪崩调度**：独创“双轨制调度算法”，完美解决高优任务霸占资源与低优任务饿死的问题。
 *   **立体容错**：内置指数退避重试、安全上下文篡改、超时逻辑抛弃与多进程物理超度。
