@@ -1,3 +1,12 @@
+"""
+ZenTask Core Module.
+
+This module provides the core functionality for ZenTask, a zero-dependency,
+industrial-grade local background task scheduler for Python.
+
+Author: dingtongbin
+License: Apache-2.0
+"""
 import asyncio
 import inspect
 import multiprocessing
@@ -57,7 +66,17 @@ class CancellationToken:
 class ZenBaseTask:
     """
     任务基类。用户应继承此类并实现 action 方法。
+    
     支持同步/异步 action、超时控制、自动重试及多进程隔离。
+    
+    Attributes:
+        priority (int): 任务优先级，数值越大越优先执行。
+        min_slots (int): 保底并发槽位，确保低优任务不被饿死。
+        max_slots (int): 最大并发槽位，防止单类任务霸占资源。
+        max_retries (int): 失败后的最大重试次数。
+        retry_delay (float): 基础重试延迟时间（秒）。
+        timeout (Optional[float]): 单个任务的超时时间（秒）。
+        use_process (bool): 是否启用多进程模式执行。
     """
     priority: int = 10
     min_slots: int = 2
@@ -116,7 +135,11 @@ class ZenBaseTask:
 class ZenTaskManager:
     """
     ZenTask 调度器核心。
+    
     负责全局并发控制、双轨制调度、延迟实例化、多进程物理超度及优雅关闭。
+    
+    Args:
+        global_max_workers (int): 全局最大并发工作线程/进程数。
     """
 
     def __init__(self, global_max_workers: int = 20):

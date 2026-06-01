@@ -2,12 +2,13 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![GitHub](https://img.shields.io/github/stars/dingtongbin/zentask?style=social)](https://github.com/dingtongbin/zentask)
 
 ZenTask 是一个专为 Python 打造的**零外部依赖**、**工业级**、**本地后台任务并发调度器**。
 
 它的设计哲学是 **“底层如钢铁般坚硬，上层如流水般柔软”**。对于业务开发者，它提供了极简的 API 和防呆设计，无需理解 GIL、协程切换或线程池原理；对于架构师，它在底层实现了延迟实例化、双轨制调度、元编程钩子短路和多进程物理超度，足以应对千万级吞吐量的生产环境。
 
-## ✨ 核心优势
+## 核心优势
 
 *   **零依赖**：仅使用 Python 3.10+ 标准库，无需安装 Redis、RabbitMQ 或 Celery。
 *   **极致内存**：采用“延迟实例化”架构，百万级任务入队内存占用不超过 50MB。
@@ -15,7 +16,7 @@ ZenTask 是一个专为 Python 打造的**零外部依赖**、**工业级**、**
 *   **立体容错**：内置指数退避重试、安全上下文篡改、超时逻辑抛弃与多进程物理超度。
 *   **异步状态机**：配套纯异步内存状态机，支持批量任务对账、SSE 实时进度推送与超时看门狗。
 
-## 🚀 快速开始
+## 快速开始
 
 只需 3 步，即可让小白开发者跑起高并发任务：
 
@@ -55,7 +56,7 @@ async def main():
 asyncio.run(main())
 ```
 
-## 📖 核心概念
+## 核心概念
 
 ### 1. 任务状态机 (State Machine)
 每个任务在调度器眼中，严格遵循以下流转过程。理解这些状态有助于你编写更健壮的业务逻辑：
@@ -70,7 +71,7 @@ asyncio.run(main())
 ### 2. 钩子函数详解与代码演示 (Lifecycle Hooks)
 ZenTask 提供了全生命周期的异步钩子。你可以重写这些方法来处理业务副作用（如记录日志、发送通知）。
 
-#### 🚀 on_start: 启动瞬间
+#### on_start: 启动瞬间
 触发时机：任务即将开始执行 `action` 之前。
 ```python
 async def on_start(self):
@@ -78,7 +79,7 @@ async def on_start(self):
     print(f"任务 {self.kwargs['id']} 开始运行")
 ```
 
-#### ✨ on_success: 凯旋而归
+#### on_success: 凯旋而归
 触发时机：任务执行成功并返回结果后。
 ```python
 async def on_success(self):
@@ -86,7 +87,7 @@ async def on_success(self):
     await save_to_db(self.kwargs['id'], self.result)
 ```
 
-#### ⚠️ on_retry: 屡败屡战
+#### on_retry: 屡败屡战
 触发时机：任务失败准备重新入队时。这里可以干预下一次重试的行为。
 ```python
 async def on_retry(self, exception, retry_ctx, next_delay):
@@ -95,7 +96,7 @@ async def on_retry(self, exception, retry_ctx, next_delay):
         retry_ctx.set('timeout', self.timeout * 2)
 ```
 
-#### ❌ on_error: 彻底放弃
+#### on_error: 彻底放弃
 触发时机：任务彻底失败（重试耗尽）后。
 ```python
 async def on_error(self):
@@ -103,7 +104,7 @@ async def on_error(self):
     send_alert(f"任务 {self.kwargs['id']} 最终失败: {self.error}")
 ```
 
-#### 🛑 on_cancel: 紧急叫停
+#### on_cancel: 紧急叫停
 触发时机：任务被手动 `manager.cancel(task_id)` 取消时。
 ```python
 async def on_cancel(self):
@@ -111,7 +112,7 @@ async def on_cancel(self):
     os.remove(self.temp_file)
 ```
 
-#### 🏁 on_complete: 尘埃落定
+#### on_complete: 尘埃落定
 触发时机：无论成功、失败还是取消都会触发，是最终的收尾工作。
 ```python
 async def on_complete(self):
@@ -127,7 +128,7 @@ ZenTask 摒弃了简单的 FIFO 或纯优先级队列，采用双轨制：
 ### 4. 延迟实例化与内存优化
 调用 `manager.enqueue()` 时，框架绝对不会实例化 Task 对象，而是仅将 `kwargs` (参数字典) 压入底层 `collections.deque`。只有当全局线程池有空位时，才 `popleft` 并实例化。执行完毕后立刻交由 GC 回收。
 
-## 🛠️ 进阶指南
+## 进阶指南
 
 ### 场景一：失败重试与安全上下文篡改
 当任务失败时，框架会自动计算指数退避延迟并重新入队。你可以在 `on_retry` 中干预下一次重试的行为：
@@ -174,7 +175,7 @@ task_id = manager.enqueue(MyTask, ...)
 manager.cancel(task_id) # 立即从队列移除或标记为取消
 ```
 
-## 🔗 联动 AsyncStateMachine (异步状态机)
+## 联动 AsyncStateMachine (异步状态机)
 
 ZenTask 现已集成配套的纯异步内存状态机，用于追踪批量任务进度并支持 SSE 数据流推送。
 
@@ -216,7 +217,7 @@ async def batch_process():
     await manager.graceful_shutdown()
 ```
 
-## 🧪 测试与运行
+## 测试与运行
 
 本项目包含完整的单元测试、白盒测试和黑盒测试。
 
@@ -231,10 +232,10 @@ python -m pytest zentask/tests/ -v
 python main.py
 ```
 
-## 📄 许可证
+## 许可证
 
 本项目采用 [Apache License 2.0](LICENSE) 开源协议。
 
 ---
 
-**ZenTask** —— 让你在并发调度的世界里，也能保持一份“禅意”。🧘‍♂️
+**ZenTask** —— 让你在并发调度的世界里，也能保持一份“禅意”。

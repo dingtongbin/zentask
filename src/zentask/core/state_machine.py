@@ -1,3 +1,12 @@
+"""
+ZenTask Async State Machine Module.
+
+This module provides a pure asynchronous in-memory state machine for tracking
+batch task progress and supporting SSE data stream pushing.
+
+Author: dingtongbin
+License: Apache-2.0
+"""
 import asyncio
 import logging
 import uuid
@@ -7,7 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class AsyncStateMachine:
-    """纯异步内存状态机，用于追踪批量任务进度并支持 SSE 数据流推送。"""
+    """
+    纯异步内存状态机，用于追踪批量任务进度并支持 SSE 数据流推送。
+    
+    提供任务创建、数据推送、实时订阅、期望对账及超时监控功能。
+    """
 
     def __init__(self):
         self._states: Dict[str, dict] = {}
